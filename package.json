@@ -1,0 +1,127 @@
+{
+  "name": "ddsl-tools",
+  "displayName": "ddsl-tools",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.110.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:ddsl"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "ddsl",
+        "aliases": [
+          "DDSL",
+          "ddsl"
+        ],
+        "extensions": [
+          ".ddsl"
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "ddsl.compile",
+        "title": "Compile DDSL",
+        "category": "DDSL"
+      },
+      {
+        "command": "ddsl.generateAI",
+        "title": "Generate DDSL from Natural Language",
+        "category": "DDSL"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "ddsl.compile",
+          "when": "resourceExtname == .ddsl",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ddsl.generateAI",
+          "when": "resourceExtname == .ddsl",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "ddsl.compile",
+          "when": "resourceExtname == .ddsl",
+          "group": "navigation@1"
+        },
+        {
+          "command": "ddsl.generateAI",
+          "when": "resourceExtname == .ddsl",
+          "group": "navigation@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "ddsl.compile"
+        },
+        {
+          "command": "ddsl.generateAI"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "DDSL",
+      "properties": {
+        "ddsl.ai.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:8080",
+          "description": "Base URL of the AI service (without /api/translate)."
+        },
+        "ddsl.ai.timeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 1000,
+          "description": "Timeout in milliseconds for AI API calls."
+        },
+        "ddsl.ai.maxRetries": {
+          "type": "number",
+          "default": 3,
+          "minimum": 0,
+          "description": "Number of retries when AI API calls fail or time out."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/vscode": "^1.110.0",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.27.3",
+    "eslint": "^9.39.3",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}
