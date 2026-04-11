@@ -28,7 +28,7 @@
     ],
     "commands": [
       {
-        "command": "ddsl.compile",
+        "command": "ddsl.compileAction",
         "title": "Compile DDSL",
         "category": "DDSL"
       },
@@ -41,7 +41,7 @@
     "menus": {
       "editor/title": [
         {
-          "command": "ddsl.compile",
+          "command": "ddsl.compileAction",
           "when": "resourceExtname == .ddsl",
           "group": "navigation@1"
         },
@@ -53,7 +53,7 @@
       ],
       "editor/context": [
         {
-          "command": "ddsl.compile",
+          "command": "ddsl.compileAction",
           "when": "resourceExtname == .ddsl",
           "group": "navigation@1"
         },
@@ -65,7 +65,7 @@
       ],
       "commandPalette": [
         {
-          "command": "ddsl.compile"
+          "command": "ddsl.compileAction"
         },
         {
           "command": "ddsl.generateAI"
@@ -75,6 +75,11 @@
     "configuration": {
       "title": "DDSL",
       "properties": {
+        "ddsl.compile.outputDir": {
+          "type": "string",
+          "default": ".ddsl-output",
+          "description": "Folder name for compile artifacts and AI diff snapshots."
+        },
         "ddsl.ai.apiUrl": {
           "type": "string",
           "default": "http://localhost:8080",

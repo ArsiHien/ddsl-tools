@@ -6,4 +6,5 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
-- Initial release
+- Add compile artifact output creation under configurable output folder.
+- Add side-by-side AI diff preview with apply/discard confirmation.
