@@ -2,6 +2,11 @@ import * as vscode from 'vscode';
 import { runAiGenerationCommand } from './commands/ai';
 import { runCompileCommand } from './commands/compile';
 import {
+	runGenerateDiagramsCommand,
+	runGenerateComponentDiagramCommand,
+	runGenerateEventFlowDiagramCommand,
+} from './commands/diagram';
+import {
 	getLastLanguageClientError,
 	startLanguageClient,
 	stopLanguageClient,
@@ -10,6 +15,9 @@ import {
 const EXTENSION_COMMANDS = {
 	compile: 'ddsl.compileAction',
 	generateAi: 'ddsl.generateAI',
+	generateDiagram: 'ddsl.generateDiagramAction',
+	generateComponentDiagram: 'ddsl.generateComponentDiagramAction',
+	generateEventFlowDiagram: 'ddsl.generateEventFlowDiagramAction',
 } as const;
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -46,6 +54,33 @@ export async function activate(context: vscode.ExtensionContext) {
 		EXTENSION_COMMANDS.generateAi,
 		async () => {
 			await runAiGenerationCommand();
+		}
+	);
+
+	await registerCommandSafely(
+		context,
+		outputChannel,
+		EXTENSION_COMMANDS.generateDiagram,
+		async () => {
+			await runGenerateDiagramsCommand(context);
+		}
+	);
+
+	await registerCommandSafely(
+		context,
+		outputChannel,
+		EXTENSION_COMMANDS.generateComponentDiagram,
+		async () => {
+			await runGenerateComponentDiagramCommand(context);
+		}
+	);
+
+	await registerCommandSafely(
+		context,
+		outputChannel,
+		EXTENSION_COMMANDS.generateEventFlowDiagram,
+		async () => {
+			await runGenerateEventFlowDiagramCommand(context);
 		}
 	);
 

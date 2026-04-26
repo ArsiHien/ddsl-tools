@@ -51,6 +51,23 @@ export async function startLanguageClient(
 	const clientOptions: LanguageClientOptions = {
 		documentSelector: [{ scheme: 'file', language: 'ddsl' }],
 		outputChannel,
+		middleware: {
+			provideDocumentSymbols: async (document, token, next) => {
+				try {
+					const result = await next(document, token);
+					return sanitizeDocumentSymbolResult(result);
+				} catch (error) {
+					if (isConnectionDisposedError(error)) {
+						clientOutputChannel?.appendLine(
+							'Document symbols request skipped because language client connection is disposed.'
+						);
+						return [];
+					}
+
+					throw error;
+				}
+			},
+		},
 		errorHandler: {
 			error: (error) => {
 				const message = toErrorMessage(error, 'Unknown language client error.');
@@ -81,11 +98,23 @@ export async function startLanguageClient(
 		outputChannel.appendLine(
 			`Language client state: ${stateToString(event.oldState)} -> ${stateToString(event.newState)}`
 		);
+
+		if (event.newState === State.Stopped) {
+			languageClient = undefined;
+		}
 	});
 
 	try {
 		await languageClient.start();
 		lastLanguageClientError = undefined;
+		const semanticProvider = languageClient.initializeResult?.capabilities.semanticTokensProvider;
+		if (semanticProvider) {
+			outputChannel.appendLine('Semantic tokens provider: available.');
+		} else {
+			outputChannel.appendLine(
+				'Semantic tokens provider: missing. The server must implement semantic tokens for syntax colors.'
+			);
+		}
 		return launch.label;
 	} catch (error) {
 		const message = toErrorMessage(error, 'Failed to start the DDSL Language Server.');
@@ -109,7 +138,7 @@ export async function ensureLanguageClientStarted(): Promise<LanguageClient | un
 		return undefined;
 	}
 
-	if (languageClient.needsStart()) {
+	if (languageClient.needsStart() || languageClient.state !== State.Running) {
 		try {
 			await languageClient.start();
 			lastLanguageClientError = undefined;
@@ -119,6 +148,12 @@ export async function ensureLanguageClientStarted(): Promise<LanguageClient | un
 			clientOutputChannel?.appendLine(`Language client ensure-start failed: ${message}`);
 			return undefined;
 		}
+	}
+
+	if (!languageClient.isRunning()) {
+		lastLanguageClientError = 'Language client is not running.';
+		clientOutputChannel?.appendLine(lastLanguageClientError);
+		return undefined;
 	}
 
 	return languageClient;
@@ -144,6 +179,52 @@ function stateToString(state: State): string {
 	}
 }
 
+function sanitizeDocumentSymbolResult(
+	result: vscode.DocumentSymbol[] | vscode.SymbolInformation[] | undefined | null
+): vscode.DocumentSymbol[] | vscode.SymbolInformation[] | undefined | null {
+	if (!result || result.length === 0) {
+		return result;
+	}
+
+	if (result[0] instanceof vscode.SymbolInformation) {
+		return result;
+	}
+
+	return (result as vscode.DocumentSymbol[]).map(sanitizeDocumentSymbol);
+}
+
+function sanitizeDocumentSymbol(symbol: vscode.DocumentSymbol): vscode.DocumentSymbol {
+	const range = symbol.range;
+	const selectionRange = containsRange(range, symbol.selectionRange)
+		? symbol.selectionRange
+		: range;
+
+	const children = symbol.children?.map(sanitizeDocumentSymbol) ?? [];
+
+	const sanitized = new vscode.DocumentSymbol(
+		symbol.name,
+		symbol.detail,
+		symbol.kind,
+		range,
+		selectionRange
+	);
+
+	sanitized.tags = symbol.tags;
+	sanitized.children = children;
+	return sanitized;
+}
+
+function containsRange(outer: vscode.Range, inner: vscode.Range): boolean {
+	return (
+		containsPosition(outer, inner.start) &&
+		containsPosition(outer, inner.end)
+	);
+}
+
+function containsPosition(range: vscode.Range, position: vscode.Position): boolean {
+	return !position.isBefore(range.start) && !position.isAfter(range.end);
+}
+
 async function resolveServerBinary(context: vscode.ExtensionContext): Promise<string | undefined> {
 	const binaryName = process.platform === 'win32' ? 'ddsl-lsp.exe' : 'ddsl-lsp';
 	const binaryPath = context.asAbsolutePath(path.join('bin', binaryName));
@@ -166,15 +247,21 @@ async function resolveServerLaunch(context: vscode.ExtensionContext): Promise<Se
 		const devJar = '/home/ndhien/dev/ddsl/ddsl-lsp-server/build/libs/ddsl-lsp.jar';
 		try {
 			await access(devJar, fsConstants.F_OK);
-			const configOutputDir = '/home/ndhien/dev/ddsl/ddsl-lsp-server/src/main/resources/META-INF/native-image/uet.ndh/ddsl-lsp';
+			const enableNativeImageAgent =
+				(await readEnvironmentValue(context, 'NATIVE_IMAGE_AGENT'))?.toLowerCase() === 'true';
+			const args = ['-jar', devJar];
+			let label = `/home/ndhien/.sdkman/candidates/java/current/bin/java -jar ${devJar}`;
+
+			if (enableNativeImageAgent) {
+				const configOutputDir = '/home/ndhien/dev/ddsl/ddsl-lsp-server/src/main/resources/META-INF/native-image/uet.ndh/ddsl-lsp';
+				args.unshift(`-agentlib:native-image-agent=config-output-dir=${configOutputDir}`);
+				label = `/home/ndhien/.sdkman/candidates/java/current/bin/java -agentlib:native-image-agent=config-output-dir=${configOutputDir} -jar ${devJar}`;
+			}
+
 			return {
 				command: '/home/ndhien/.sdkman/candidates/java/current/bin/java',
-				args: [
-					`-agentlib:native-image-agent=config-output-dir=${configOutputDir}`,
-					'-jar',
-					devJar,
-				],
-				label: `/home/ndhien/.sdkman/candidates/java/current/bin/java -agentlib:native-image-agent=config-output-dir=${configOutputDir} -jar ${devJar}`,
+				args,
+				label,
 			};
 		} catch {
 			lastLanguageClientError = `ENV=dev but jar not found at ${devJar}`;
@@ -194,6 +281,14 @@ async function resolveServerLaunch(context: vscode.ExtensionContext): Promise<Se
 }
 
 async function readEnvironment(context: vscode.ExtensionContext): Promise<string> {
+	const value = await readEnvironmentValue(context, 'ENV');
+	return value ? value.toLowerCase() : 'prod';
+}
+
+async function readEnvironmentValue(
+	context: vscode.ExtensionContext,
+	keyToFind: string
+): Promise<string | undefined> {
 	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 	const candidates = [
 		workspaceRoot ? path.join(workspaceRoot, '.env') : undefined,
@@ -223,8 +318,8 @@ async function readEnvironment(context: vscode.ExtensionContext): Promise<string
 					value = value.slice(1, -1);
 				}
 
-				if (key === 'ENV') {
-					return value.toLowerCase();
+				if (key === keyToFind) {
+					return value;
 				}
 			}
 		} catch {
@@ -232,5 +327,10 @@ async function readEnvironment(context: vscode.ExtensionContext): Promise<string
 		}
 	}
 
-	return 'prod';
+	return undefined;
+}
+
+function isConnectionDisposedError(error: unknown): boolean {
+	const message = toErrorMessage(error, '').toLowerCase();
+	return message.includes('connection got disposed') || message.includes('pending response rejected');
 }

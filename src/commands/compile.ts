@@ -29,8 +29,17 @@ export async function runCompileCommand(): Promise<void> {
 			languageClient.sendRequest('workspace/executeCommand', {
 				command: SERVER_COMMANDS.compile,
 				arguments: [
-					documentUri,
-					{ basePackage: 'com.example.domain' },
+					{
+						uri: documentUri,
+						documentUri,
+						textDocumentUri: documentUri,
+					},
+					{
+						basePackage: 'com.example.domain',
+						uri: documentUri,
+						documentUri,
+						textDocumentUri: documentUri,
+					},
 				],
 			}),
 			COMPILE_REQUEST_TIMEOUT_MS

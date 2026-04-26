@@ -36,6 +36,21 @@
         "command": "ddsl.generateAI",
         "title": "Generate DDSL from Natural Language",
         "category": "DDSL"
+      },
+      {
+        "command": "ddsl.generateDiagramAction",
+        "title": "Generate Diagram",
+        "category": "DDSL"
+      },
+      {
+        "command": "ddsl.generateComponentDiagramAction",
+        "title": "Generate Component Diagram",
+        "category": "DDSL"
+      },
+      {
+        "command": "ddsl.generateEventFlowDiagramAction",
+        "title": "Generate Event Flow Diagram",
+        "category": "DDSL"
       }
     ],
     "menus": {
@@ -49,6 +64,16 @@
           "command": "ddsl.generateAI",
           "when": "resourceExtname == .ddsl",
           "group": "navigation@2"
+        },
+        {
+          "command": "ddsl.generateComponentDiagramAction",
+          "when": "resourceExtname == .ddsl",
+          "group": "navigation@3"
+        },
+        {
+          "command": "ddsl.generateEventFlowDiagramAction",
+          "when": "resourceExtname == .ddsl",
+          "group": "navigation@4"
         }
       ],
       "editor/context": [
@@ -61,6 +86,16 @@
           "command": "ddsl.generateAI",
           "when": "resourceExtname == .ddsl",
           "group": "navigation@2"
+        },
+        {
+          "command": "ddsl.generateComponentDiagramAction",
+          "when": "resourceExtname == .ddsl",
+          "group": "navigation@3"
+        },
+        {
+          "command": "ddsl.generateEventFlowDiagramAction",
+          "when": "resourceExtname == .ddsl",
+          "group": "navigation@4"
         }
       ],
       "commandPalette": [
@@ -69,6 +104,17 @@
         },
         {
           "command": "ddsl.generateAI"
+        },
+        {
+          "command": "ddsl.generateDiagramAction"
+        },
+        {
+          "command": "ddsl.generateComponentDiagramAction",
+          "when": "resourceLangId == ddsl"
+        },
+        {
+          "command": "ddsl.generateEventFlowDiagramAction",
+          "when": "resourceLangId == ddsl"
         }
       ]
     },
@@ -98,7 +144,106 @@
           "description": "Number of retries when AI API calls fail or time out."
         }
       }
-    }
+    },
+    "configurationDefaults": {
+      "[ddsl]": {
+        "editor.semanticHighlighting.enabled": true
+      }
+    },
+    "semanticTokenScopes": [
+      {
+        "language": "ddsl",
+        "scopes": {
+          "namespace": [
+            "entity.name.namespace"
+          ],
+          "type": [
+            "entity.name.type"
+          ],
+          "class": [
+            "entity.name.class"
+          ],
+          "enum": [
+            "entity.name.enum"
+          ],
+          "interface": [
+            "entity.name.interface"
+          ],
+          "struct": [
+            "entity.name.struct"
+          ],
+          "typeParameter": [
+            "entity.name.type.parameter"
+          ],
+          "parameter": [
+            "variable.parameter"
+          ],
+          "variable": [
+            "variable.other.readwrite"
+          ],
+          "property": [
+            "variable.other.property"
+          ],
+          "enumMember": [
+            "variable.other.enummember"
+          ],
+          "event": [
+            "support.type.event-name"
+          ],
+          "function": [
+            "entity.name.function"
+          ],
+          "method": [
+            "entity.name.function.member"
+          ],
+          "macro": [
+            "entity.name.function.preprocessor"
+          ],
+          "keyword": [
+            "keyword"
+          ],
+          "modifier": [
+            "storage.modifier"
+          ],
+          "comment": [
+            "comment"
+          ],
+          "string": [
+            "string"
+          ],
+          "number": [
+            "constant.numeric"
+          ],
+          "regexp": [
+            "string.regexp"
+          ],
+          "operator": [
+            "keyword.operator"
+          ],
+          "decorator": [
+            "entity.name.function.decorator"
+          ],
+          "parameter.readonly": [
+            "variable.parameter.readonly"
+          ],
+          "property.readonly": [
+            "variable.other.property.readonly"
+          ],
+          "variable.readonly": [
+            "variable.other.constant"
+          ],
+          "*.declaration": [
+            "entity.name"
+          ],
+          "*.documentation": [
+            "comment.block.documentation"
+          ],
+          "*.defaultLibrary": [
+            "support"
+          ]
+        }
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
@@ -127,6 +272,7 @@
     "typescript-eslint": "^8.56.1"
   },
   "dependencies": {
+    "mermaid": "^11.14.0",
     "vscode-languageclient": "^9.0.1"
   }
 }
