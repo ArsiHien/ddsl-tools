@@ -1,0 +1,3 @@
+{
+    "dsl": "BoundedContext HotelManagement {\n  Aggregate Reservation {\n    AggregateRoot ReservationRoot {\n      Identity reservationId\n      field guestName: String\n      field roomType: String\n      field checkInDate: Date\n      field checkOutDate: Date\n    }\n    Entity Guest {\n      field name: String\n      field email: String\n    }\n    DomainEvent ReservationCreated {\n      field reservationId: UUID\n      field guestName: String\n    }\n  }\n  Service ReservationService {\n    Command CreateReservation\n    Command CancelReservation\n  }\n}"
+}

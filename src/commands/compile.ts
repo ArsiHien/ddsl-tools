@@ -114,10 +114,7 @@ async function handleCompileResponse(response: unknown): Promise<void> {
 		const outputCandidate = extractOutputCandidate(response);
 
 		if (outputCandidate) {
-			const opened = await tryOpenPathOrUri(outputCandidate);
-			if (!opened) {
-				vscode.window.showInformationMessage(message);
-			}
+			await openDiffWithCurrentEditor(outputCandidate);
 			return;
 		}
 
@@ -154,4 +151,33 @@ async function tryOpenPathOrUri(value: string): Promise<boolean> {
 	} catch {
 		return false;
 	}
+}
+
+async function openDiffWithCurrentEditor(outputPath: string): Promise<void> {
+	const editor = vscode.window.activeTextEditor;
+	if (!editor) {
+		vscode.window.showErrorMessage('No active editor to compare.');
+		return;
+	}
+
+	const leftUri = editor.document.uri;
+	let rightUri: vscode.Uri;
+	if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(outputPath)) {
+		rightUri = vscode.Uri.parse(outputPath);
+	} else {
+		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+		const absolutePath = path.isAbsolute(outputPath)
+			? outputPath
+			: workspaceFolder
+				? path.join(workspaceFolder.uri.fsPath, outputPath)
+				: outputPath;
+		rightUri = vscode.Uri.file(absolutePath);
+	}
+
+	await vscode.commands.executeCommand(
+		'vscode.diff',
+		leftUri,
+		rightUri,
+		'DDSL Compile Diff'
+	);
 }

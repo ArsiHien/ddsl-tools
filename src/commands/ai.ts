@@ -1,6 +1,31 @@
 import * as vscode from 'vscode';
+import * as path from 'node:path';
 import { createAiDiffFiles } from '../io/artifacts';
 import { toErrorMessage } from '../shared/errors';
+
+class AIContentProvider implements vscode.TextDocumentContentProvider {
+	static scheme = 'ddsl-ai-preview';
+	private readonly onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
+	readonly onDidChange = this.onDidChangeEmitter.event;
+	private content = '';
+
+	update(uri: vscode.Uri, content: string): void {
+		this.content = content;
+		this.onDidChangeEmitter.fire(uri);
+	}
+
+	provideTextDocumentContent(): string {
+		return this.content;
+	}
+}
+
+const aiProvider = new AIContentProvider();
+
+export function registerAiPreviewProvider(context: vscode.ExtensionContext): void {
+	context.subscriptions.push(
+		vscode.workspace.registerTextDocumentContentProvider(AIContentProvider.scheme, aiProvider)
+	);
+}
 
 export async function runAiGenerationCommand(): Promise<void> {
 	const editor = vscode.window.activeTextEditor;
@@ -41,60 +66,60 @@ export async function runAiGenerationCommand(): Promise<void> {
 		);
 
 		const currentDocument = editor.document;
-		const selection = editor.selection;
 		const currentContent = currentDocument.getText();
-		const startOffset = currentDocument.offsetAt(selection.start);
-		const endOffset = currentDocument.offsetAt(selection.end);
-		const proposedContent =
-			currentContent.slice(0, startOffset) +
-			generatedCode +
-			currentContent.slice(endOffset);
 
-		const diffUris = await createAiDiffFiles(
+		await createAiDiffFiles(
 			currentDocument.uri,
 			currentContent,
-			proposedContent,
+			generatedCode,
 			input.trim()
 		);
 
+		const baseName = path.basename(currentDocument.fileName);
+		const previewName = `${baseName || 'ddsl'}-ai.ddsl`;
+		const previewUri = vscode.Uri.parse(
+			`${AIContentProvider.scheme}:${encodeURIComponent(previewName)}`
+		);
+		aiProvider.update(previewUri, generatedCode);
+
+		await vscode.workspace
+			.getConfiguration('diffEditor')
+			.update('renderSideBySide', true, vscode.ConfigurationTarget.Workspace);
+
 		await vscode.commands.executeCommand(
 			'vscode.diff',
-			diffUris.before,
-			diffUris.after,
-			'AI Generated DDSL Preview',
-			{ preview: false, viewColumn: vscode.ViewColumn.Beside }
+			currentDocument.uri,
+			previewUri,
+			`${baseName || 'DDSL'} ↔ AI Generated`,
+			{ preview: true, viewColumn: vscode.ViewColumn.Active }
 		);
 
-		const action = await vscode.window.showInformationMessage(
-			'Review the side-by-side diff. Do you want to apply the AI-generated changes?',
-			{ modal: true },
+		const choice = await vscode.window.showInformationMessage(
+			'Apply AI generated changes to the current file?',
 			'Apply',
-			'Discard'
+			'Cancel'
 		);
-
-		if (action !== 'Apply') {
-			vscode.window.showInformationMessage('AI-generated changes were discarded.');
-			return;
+		if (choice === 'Apply') {
+			await applyGeneratedCode(currentDocument, generatedCode);
 		}
-
-		const inserted = await editor.edit((editBuilder) => {
-			if (selection && !selection.isEmpty) {
-				editBuilder.replace(selection, generatedCode);
-			} else {
-				editBuilder.insert(selection.active, generatedCode);
-			}
-		});
-
-		if (!inserted) {
-			throw new Error('Failed to insert DDSL code into the editor.');
-		}
-
-		vscode.window.showInformationMessage('Applied AI-generated DDSL changes to the editor.');
 	} catch (error) {
 		vscode.window.showErrorMessage(
 			`AI generation failed: ${toErrorMessage(error, 'Unknown error.')}`
 		);
 	}
+}
+
+async function applyGeneratedCode(
+	document: vscode.TextDocument,
+	content: string
+): Promise<void> {
+	const fullRange = new vscode.Range(
+		document.positionAt(0),
+		document.positionAt(document.getText().length)
+	);
+	const edit = new vscode.WorkspaceEdit();
+	edit.replace(document.uri, fullRange, content);
+	await vscode.workspace.applyEdit(edit);
 }
 
 async function requestAiTranslation(params: {
@@ -106,6 +131,17 @@ async function requestAiTranslation(params: {
 }): Promise<string> {
 	const { baseUrl, input, timeoutMs, maxRetries, token } = params;
 	const endpoint = `${baseUrl.replace(/\/$/, '')}/api/translate`;
+
+	// Development mode: return mock response for UI testing
+	const mockResponse = {
+		dsl: 'BoundedContext HotelManagement {\n  Aggregate Reservation {\n    AggregateRoot ReservationRoot {\n      Identity reservationId\n      field guestName: String\n      field roomType: String\n      field checkInDate: Date\n      field checkOutDate: Date\n    }\n    Entity Guest {\n      field name: String\n      field email: String\n    }\n    DomainEvent ReservationCreated {\n      field reservationId: UUID\n      field guestName: String\n    }\n  }\n  Service ReservationService {\n    Command CreateReservation\n    Command CancelReservation\n  }\n}'
+	};
+	const code = extractDslFromAiResponse(mockResponse);
+	if (code.trim()) {
+		vscode.window.showInformationMessage('[DEV] Using mock AI response');
+		return code;
+	}
+
 
 	let lastError: unknown;
 

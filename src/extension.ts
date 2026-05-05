@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { runAiGenerationCommand } from './commands/ai';
+import { registerAiPreviewProvider, runAiGenerationCommand } from './commands/ai';
 import { runCompileCommand } from './commands/compile';
 import {
 	runGenerateDiagramsCommand,
@@ -23,6 +23,7 @@ const EXTENSION_COMMANDS = {
 export async function activate(context: vscode.ExtensionContext) {
 	const outputChannel = vscode.window.createOutputChannel('DDSL Language Server');
 	context.subscriptions.push(outputChannel);
+	registerAiPreviewProvider(context);
 
 	const binaryPath = await startLanguageClient(context, outputChannel);
 	if (!binaryPath) {
