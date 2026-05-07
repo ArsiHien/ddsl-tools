@@ -400,15 +400,11 @@ function toEventFlowMermaid(model: unknown): string {
 
       if (!eventName || !componentName) continue;
 
-      const participantLabel = componentName;
-      participants.add(participantLabel);
-
       if (behaviorName) {
+        participants.add(componentName);
+
         if (!publishersByEvent.has(eventName)) publishersByEvent.set(eventName, new Set());
-        publishersByEvent.get(eventName)!.add(participantLabel);
-      } else {
-        if (!subscribersByEvent.has(eventName)) subscribersByEvent.set(eventName, new Set());
-        subscribersByEvent.get(eventName)!.add(participantLabel);
+        publishersByEvent.get(eventName)!.add(componentName);
       }
     }
 
@@ -416,9 +412,23 @@ function toEventFlowMermaid(model: unknown): string {
     for (const ev of eventsArr) {
       const eo = getObject(ev);
       if (!eo) continue;
-      const en = readString(eo.eventName) ?? readString(eo.name) ?? readString(eo.event);
-      if (!en) continue;
-      if (!publishersByEvent.has(en)) publishersByEvent.set(en, new Set());
+
+      const eventName = readString(eo.eventName) ?? readString(eo.name) ?? readString(eo.event);
+      if (!eventName) continue;
+
+      if (!publishersByEvent.has(eventName)) {
+        publishersByEvent.set(eventName, new Set());
+      }
+
+      const handler = getObject(eo.handler);
+      if (handler && eo.isHandled === true) {
+        const handlerName = readString(handler.handlerName) ?? readString(handler.handledByComponent);
+        if (handlerName) {
+          participants.add(handlerName);
+          if (!subscribersByEvent.has(eventName)) subscribersByEvent.set(eventName, new Set());
+          subscribersByEvent.get(eventName)!.add(handlerName);
+        }
+      }
     }
   }
 
@@ -437,15 +447,10 @@ function toEventFlowMermaid(model: unknown): string {
     lines.push(`  ${sanitizeMermaidIdentifier(p)}["${sanitizeMermaidLabel(p)}"]`);
   }
 
-  // per-event no-subscriber sink nodes use unique ids
   for (const eventName of allEvents) {
     const eventId = `E_${sanitizeMermaidIdentifier(eventName)}`;
     const pubs = Array.from(publishersByEvent.get(eventName) ?? []);
     const subs = Array.from(subscribersByEvent.get(eventName) ?? []);
-
-    // define event node (append "(no subscribers)" when applicable)
-    const eventLabel = `${sanitizeMermaidLabel(eventName)}${subs.length === 0 ? " (no subscribers)" : ""}`;
-    lines.push(`  ${eventId}["${eventLabel}"]`);
 
     if (pubs.length === 0 && subs.length === 0) {
       continue;
@@ -453,6 +458,8 @@ function toEventFlowMermaid(model: unknown): string {
 
     for (const pub of pubs) {
       if (subs.length === 0) {
+        const eventLabel = `${sanitizeMermaidLabel(eventName)} (no subscribers)`;
+        lines.push(`  ${eventId}["${eventLabel}"]`);
         lines.push(`  ${sanitizeMermaidIdentifier(pub)} -->|${sanitizeMermaidLabel(eventName)}| ${eventId}`);
       } else {
         for (const sub of subs) {
