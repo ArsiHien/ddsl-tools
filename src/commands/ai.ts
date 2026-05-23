@@ -134,7 +134,66 @@ async function requestAiTranslation(params: {
 
 	// Development mode: return mock response for UI testing
 	const mockResponse = {
-		dsl: 'BoundedContext HotelManagement {\n  Aggregate Reservation {\n    AggregateRoot ReservationRoot {\n      Identity reservationId\n      field guestName: String\n      field roomType: String\n      field checkInDate: Date\n      field checkOutDate: Date\n    }\n    Entity Guest {\n      field name: String\n      field email: String\n    }\n    DomainEvent ReservationCreated {\n      field reservationId: UUID\n      field guestName: String\n    }\n  }\n  Service ReservationService {\n    Command CreateReservation\n    Command CancelReservation\n  }\n}'
+		dsl: `BoundedContext HotelBooking {
+
+    domain {
+        Aggregate Reservation {
+            reservationId: UUID @identity
+            guest: GuestProfile
+            checkIn: DateTime @required
+            checkOut: DateTime @required
+            roomAssignments: List<RoomAssignment>
+            totalCost: Money
+            reservationStatus: String
+            specialRequests: String
+            createdAt: DateTime
+            updatedAt: DateTime
+
+            operations {
+                when placing reservation with guest and roomType:
+                require that:
+                    - checkIn is not empty
+                    - checkOut is not empty
+                    - guest is not empty
+                then:
+                    - set reservationStatus to "PENDING"
+                    - calculate totalCost as sum of nightlyRate
+                emit ReservationPlaced with reservationId
+
+                when confirming reservation:
+                require that:
+                    - reservationStatus is "PENDING"
+                then:
+                    - set reservationStatus to "CONFIRMED"
+                    - set updatedAt to now
+                emit ReservationConfirmed with reservationId
+
+                when cancelling reservation:
+                require that:
+                    - reservationStatus is not "CHECKED_IN"
+                    - reservationStatus is not "CANCELLED"
+                then:
+                    - set reservationStatus to "CANCELLED"
+                    - set updatedAt to now
+                emit ReservationCancelled with reservationId
+
+                when checking in:
+                require that:
+                    - reservationStatus is "CONFIRMED"
+                then:
+                    - set reservationStatus to "CHECKED_IN"
+                emit GuestCheckedIn with reservationId
+
+                when checking out:
+                require that:
+                    - reservationStatus is "CHECKED_IN"
+                then:
+                    - set reservationStatus to "CHECKED_OUT"
+                emit GuestCheckedOut with reservationId
+            }
+        }
+    }
+}`
 	};
 	const code = extractDslFromAiResponse(mockResponse);
 	if (code.trim()) {
